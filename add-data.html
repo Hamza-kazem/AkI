@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add New Data - Secure User Management System</title>
+    
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 0;
+        }
+        
+        .terminal {
+            border: 2px solid #555;
+            padding: 20px;
+            background-color: #0c0c0c;
+            width: 900px;
+            margin: 20px auto;
+            border-radius: 3px;
+            box-shadow: 0 0 10px rgba(0,255,0,0.1);
+        }
+        
+        .mysql-prompt {
+            color: #00ff00;
+        }
+        
+        .form-container {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #333;
+            border-radius: 3px;
+            background-color: #111;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #00ff00;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            background-color: black;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 2px;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus,
+        .form-group textarea:focus,
+        .form-group select:focus {
+            border-color: #00ff00;
+            outline: none;
+            box-shadow: 0 0 5px rgba(0,255,0,0.3);
+        }
+        
+        .form-group textarea {
+            height: 60px;
+            resize: vertical;
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        .submit-btn {
+            background-color: #222;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+        
+        .submit-btn:hover {
+            background-color: #00ff00;
+            color: black;
+        }
+        
+        .submit-btn:disabled {
+            background-color: #333;
+            color: #666;
+            border-color: #666;
+            cursor: not-allowed;
+        }
+        
+        .back-btn {
+            background-color: #333;
+            color: white;
+            border: 1px solid #666;
+            padding: 8px 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 2px;
+            text-decoration: none;
+            display: inline-block;
+            margin-right: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .back-btn:hover {
+            background-color: #555;
+            border-color: #888;
+        }
+        
+        .status-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 2px;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .status-success {
+            background-color: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+            color: #00ff00;
+        }
+        
+        .status-error {
+            background-color: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff0000;
+            color: #ff0000;
+        }
+        
+        .status-loading {
+            background-color: rgba(255, 255, 0, 0.1);
+            border: 1px solid #ffff00;
+            color: #ffff00;
+        }
+        
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .user-info {
+            color: #888;
+            font-size: 12px;
+        }
+        
+        .options-menu {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .options-dropdown {
+            background-color: #111;
+            border: 1px solid white;
+            min-width: 120px;
+            box-shadow: 0px 2px 4px rgba(0,255,0,0.2);
+            position: absolute;
+            top: 100%;
+            right: 0;
+            z-index: 1000;
+        }
+        
+        .options-item {
+            padding: 8px 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: white;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            transition: background-color 0.2s;
+        }
+        
+        .options-item:hover {
+            background-color: #333;
+            color: #00ff00;
+        }
+        
+        .options-item:last-child {
+            border-bottom: none;
+        }
+        
+        .options-btn {
+            padding: 4px 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background-color: #222;
+            color: #ccc;
+            border: 1px solid #555;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+        
+        .options-btn:hover {
+            background-color: #333;
+            color: #00ff00;
+            border-color: #00ff00;
+        }
+        
+        .required {
+            color: #ff6666;
+        }
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <!-- Header with user info and options -->
+        <div class="header-info">
+            <div>
+                <span class="mysql-prompt">mysql></span> INSERT INTO users (type, username, password, date, notes, extra) VALUES
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <div class="user-info" id="userInfo">
+                    Loading user info...
+                </div>
+                <div class="options-menu">
+                    <button id="optionsBtn" class="options-btn">
+                        [Options]
+                    </button>
+                    <div id="optionsMenu" class="options-dropdown" style="display: none;">
+                        <div id="backToMain" class="options-item">
+                            Back to Main
+                        </div>
+                        <div id="logoutOption" class="options-item">
+                            Secure Logout
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Data Form -->
+        <div class="form-container">
+            <div id="addDataForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="type">Type <span class="required">*</span></label>
+                        <select id="type" name="type">
+                            <option value="">Select Type</option>
+                            <option value="Website">Website</option>
+                            <option value="Application">Application</option>
+                            <option value="Database">Database</option>
+                            <option value="Server">Server</option>
+                            <option value="Email">Email</option>
+                            <option value="Social">Social</option>
+                            <option value="Banking">Banking</option>
+                            <option value="Gaming">Gaming</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="username">Username <span class="required">*</span></label>
+                        <input type="text" id="username" name="username" placeholder="Enter username">
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="password">Password <span class="required">*</span></label>
+                        <input type="password" id="password" name="password" placeholder="Enter password">
+                    </div>
+                    <div class="form-group">
+                        <label for="date">Date</label>
+                        <input type="date" id="date" name="date">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" name="notes" placeholder="Additional notes (optional)"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="extra">Extra Information</label>
+                    <input type="text" id="extra" name="extra" placeholder="Extra information (optional)">
+                </div>
+                
+                <div style="margin-top: 20px;">
+                    <a href="SQL3.HTML" class="back-btn">← Back to Main</a>
+                    <button type="button" id="submitBtn" class="submit-btn">
+                        [OK] Execute INSERT
+                    </button>
+                </div>
+                
+                <div id="statusMessage" class="status-message"></div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

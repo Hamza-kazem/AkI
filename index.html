@@ -1,0 +1,588 @@
+<!DOCTYPE html><html>
+<head>
+    <title>Secure User Management System</title>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <style>
+        body {
+            background-color: black;
+            color: white;
+            font-family: monospace;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid white;
+            padding: 4px 8px;
+            text-align: left;
+        }
+        th {
+            background-color: black;
+        }
+        input[type="text"] {
+            width: 300px;
+            padding: 5px;
+            font-family: monospace;
+            font-size: 16px;
+            background-color: black;
+            color: white;
+            border: 1px solid white;
+        }
+        input[type="submit"] {
+            padding: 5px 10px;
+            font-family: monospace;
+            font-size: 16px;
+            background-color: black;
+            color: white;
+            border: 1px solid white;
+            margin-left: 5px;
+        }
+        .terminal {
+            border: 2px solid #555;
+            padding: 15px;
+            background-color: #0c0c0c;
+            width: 800px;
+            margin: 20px auto;
+            border-radius: 3px;
+            box-shadow: 0 0 10px rgba(0,255,0,0.1);
+        }
+        .mysql-prompt {
+            color: #00ff00;
+        }
+        
+        /* Options Menu Styles */
+        .options-menu {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .options-dropdown {
+            background-color: #111;
+            border: 1px solid white;
+            min-width: 120px;
+            box-shadow: 0px 2px 4px rgba(0,255,0,0.2);
+        }
+        
+        .options-item {
+            padding: 8px 12px;
+            font-family: monospace;
+            font-size: 14px;
+            color: white;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            transition: background-color 0.2s;
+        }
+        
+        .options-item:hover {
+            background-color: #333;
+            color: #00ff00;
+        }
+        
+        .options-item:last-child {
+            border-bottom: none;
+        }
+        
+        /* Options Button Style */
+        .options-btn {
+            padding: 4px 8px;
+            font-family: monospace;
+            font-size: 12px;
+            background-color: #222;
+            color: #ccc;
+            border: 1px solid #555;
+            cursor: pointer;
+            border-radius: 2px;
+        }
+        
+        .options-btn:hover {
+            background-color: #333;
+            color: #00ff00;
+            border-color: #00ff00;
+        }
+        
+        /* Password toggle button styles - UNUSED (passwords now shown directly)
+        .pwd-toggle {
+            margin-left: 4px;
+            background: transparent;
+            border: none;
+            color: #666;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+            padding: 0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            vertical-align: middle;
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            text-align: center;
+            line-height: 16px;
+        }
+        
+        .pwd-toggle:hover {
+            color: #00ff00;
+            transform: scale(1.1);
+        }
+        
+        .pwd-toggle:active {
+            transform: scale(0.95);
+        }
+        */
+    </style>
+</head>
+<body>
+    <div class="terminal">
+        <div style="margin-bottom: 20px;">
+            <span class="mysql-prompt">mysql&gt;</span> SELECT * FROM users WHERE username = 
+            <input type="text" id="usernameSearch" placeholder="Enter username" style="padding: 5px; font-family: monospace; font-size: 16px; background-color: black; color: white; border: 1px solid white; margin: 0 5px;">
+            <button id="loadData" style="padding: 5px 10px; font-family: monospace; font-size: 16px; background-color: black; color: white; border: 1px solid white; margin-left: 5px;">Execute</button>
+            <span id="loadingMsg" style="color: #00ff00; margin-left: 10px; display: none;">Loading...</span>
+        </div>
+        
+        <table id="resultsTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Username</th>
+                    <th>Password</th>
+                    <th>Date</th>
+                    <th>Notes</th>
+                    <th>Extra</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Results will be inserted here -->
+            </tbody>
+        </table>
+        
+        <div id="errorMsg" style="color: #ff0000; margin-top: 10px; display: none;"></div>
+        <div id="noDataMsg" style="color: #ffff00; margin-top: 10px; display: none;">No data to display</div>
+    </div>
+
+<script>
+    const loadButton = document.getElementById('loadData');
+    const table = document.getElementById('resultsTable');
+    const tbody = table.querySelector('tbody');
+    const loadingMsg = document.getElementById('loadingMsg');
+    const errorMsg = document.getElementById('errorMsg');
+    const noDataMsg = document.getElementById('noDataMsg');
+
+    // Google Apps Script Web App URL
+    let SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwwExG_hl6WJvGZmwpebPBRzYdJbmv8Og9D2g0qP-R_0LyxUlqeOSLl_t__BH6oggxgWQ/exec';
+    
+    // Function to format date to simple format (day month year)
+    function formatDate(dateValue) {
+        if (!dateValue) return '';
+        
+        try {
+            let date;
+            if (dateValue instanceof Date) {
+                date = dateValue;
+            } else if (typeof dateValue === 'string') {
+                date = new Date(dateValue);
+            } else {
+                return dateValue; // Return as is if not a date
+            }
+            
+            if (isNaN(date.getTime())) {
+                return dateValue; // Return original if invalid date
+            }
+            
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-indexed
+            const year = date.getFullYear();
+            
+            return `${year}/${month}/${day}`;
+        } catch (error) {
+            return dateValue; // Return original if error
+        }
+    }
+    
+    // Function to hide all messages
+    function hideAllMessages() {
+        const currentTable = window.table || table;
+        const currentLoadingMsg = window.loadingMsg || loadingMsg;
+        const currentErrorMsg = window.errorMsg || errorMsg;
+        const currentNoDataMsg = window.noDataMsg || noDataMsg;
+        const successMsg = document.getElementById('successMsg');
+        
+        currentTable.style.display = 'none';
+        currentLoadingMsg.style.display = 'none';
+        currentErrorMsg.style.display = 'none';
+        currentNoDataMsg.style.display = 'none';
+        
+        // Hide success message if it exists
+        if (successMsg) {
+            successMsg.style.display = 'none';
+        }
+    }
+
+    // ========================================
+    // 📢 MESSAGE DISPLAY FUNCTIONS
+    // ========================================
+    
+    /**
+     * Show success message in Linux terminal style (DISABLED)
+     */
+    function showSuccess(message) {
+      // تم تعط
+      console.log('[INFO]', message);
+    }
+    
+    /**
+     * Show error message in Linux terminal style
+     */
+    function showError(message) {
+      console.error('[ERROR]', message);
+      
+      const errorMsg = document.getElementById('errorMsg');
+      if (errorMsg) {
+        errorMsg.textContent = `[ERROR] ${message}`;
+        errorMsg.style.cssText = `
+          color: #ff0000;
+          background-color: #000;
+          border: 1px solid #333;
+          padding: 8px 12px;
+          margin: 8px 0;
+          font-family: 'Courier New', monospace;
+          font-size: 14px;
+          display: block;
+          border-left: 3px solid #ff0000;
+        `;
+      }
+    }
+
+    // ========================================
+    // 🔐 SERVER SHEET XOR + BASE64 DECRYPTION
+    // ========================================
+    
+    /**
+     * Server Decryption Configuration (matches backend)
+     */
+    const SERVER_DECRYPT_CONFIG = {
+      // Strong encryption key (same as backend)
+      ENCRYPTION_KEY: 'SecureServerKey2024_XOR_StrongEncryption_v2.1_Advanced',
+      
+      // Encryption markers
+      ENCRYPTION_MARKER: 'SRV_XOR_',
+      DECRYPTION_MARKER: '_ENCRYPTED_END',
+      
+      // Advanced settings
+      XOR_ROUNDS: 3 // Multiple XOR rounds
+    };
+
+    /**
+     * Enhanced XOR decryption with multiple rounds (same as backend)
+     */
+    function enhancedXorDecrypt(encryptedText, key, rounds = 3) {
+      try {
+        if (!encryptedText || !key) return encryptedText;
+        
+        let result = encryptedText;
+        const keyLength = key.length;
+        
+        // Reverse the XOR rounds
+        for (let round = rounds - 1; round >= 0; round--) {
+          let roundResult = '';
+          
+          for (let i = 0; i < result.length; i++) {
+            const encryptedChar = result.charCodeAt(i);
+            const keyChar = key.charCodeAt((i + round) % keyLength);
+            const roundModifier = round + 1;
+            const xorResult = encryptedChar ^ keyChar ^ roundModifier;
+            roundResult += String.fromCharCode(xorResult);
+          }
+          
+          result = roundResult;
+        }
+        
+        return result;
+        
+      } catch (error) {
+        console.error('[XOR] Enhanced XOR decryption failed:', error);
+        return '[DECRYPTION_ERROR]';
+      }
+    }
+
+    /**
+     * Check if text is encrypted with Server encryption
+     */
+    function isServerEncrypted(text) {
+      return text && 
+             text.toString().startsWith(SERVER_DECRYPT_CONFIG.ENCRYPTION_MARKER) && 
+             text.toString().endsWith(SERVER_DECRYPT_CONFIG.DECRYPTION_MARKER);
+    }
+
+    /**
+     * Full Server decryption process: Base64 + Enhanced XOR + Salt removal
+     * Now uses encryption key from Firestore
+     */
+    async function decryptServerData(encryptedText) {
+      try {
+        if (!isServerEncrypted(encryptedText)) {
+          return encryptedText; // Return as-is if not encrypted
+        }
+        
+        console.log('[DECRYPT] Processing encrypted server data...');
+        
+        // Get encryption key from Firestore
+        const keyManager = new EncryptionKeyManager();
+        let encryptionKey = await keyManager.getEncryptionKey('default');
+        
+        // Check if we got a valid key from Firestore
+        if (!encryptionKey) {
+          console.error('[ERROR] Failed to retrieve encryption key from Firestore');
+          console.error('[ERROR] Decryption aborted - no valid key available');
+          return '[FIRESTORE_KEY_ERROR]';
+        } else {
+          console.log('[OK] Using encryption key from Firestore');
+          console.log(`[INFO] Key length: ${encryptionKey.length} characters`);
+        }
+        
+        // Fallback to hardcoded key if Firestore fails
+        // if (!encryptionKey) {
+        //   console.log('[WARNING] Using fallback encryption key');
+        //   encryptionKey = SERVER_DECRYPT_CONFIG.ENCRYPTION_KEY;
+        // } else {
+        //   console.log('[OK] Using encryption key from Firestore');
+        // }
+        
+        // Step 1: Remove encryption markers
+        const base64Data = encryptedText
+          .replace(SERVER_DECRYPT_CONFIG.ENCRYPTION_MARKER, '')
+          .replace(SERVER_DECRYPT_CONFIG.DECRYPTION_MARKER, '');
+        
+        // Step 2: Base64 decode
+        const xorEncrypted = atob(base64Data);
+        
+        // Step 3: Enhanced XOR decrypt with Firestore key
+        const saltedText = enhancedXorDecrypt(
+          xorEncrypted, 
+          encryptionKey, 
+          SERVER_DECRYPT_CONFIG.XOR_ROUNDS
+        );
+        
+        // Step 4: Remove salt (extract original text after '|')
+        const pipeIndex = saltedText.indexOf('|');
+        if (pipeIndex === -1) {
+          throw new Error('Invalid encrypted data format');
+        }
+        
+        const originalText = saltedText.substring(pipeIndex + 1);
+        
+        console.log('[DECRYPT] Server data decrypted successfully');
+        return originalText;
+        
+      } catch (error) {
+        console.error('[DECRYPT] Frontend server decryption failed:', error);
+        return '[DECRYPTION_ERROR]';
+      }
+    }
+
+    /**
+     * Toggle data visibility with decryption for encrypted fields (UNUSED - passwords now shown directly)
+     */
+    /*
+    function toggleDataVisibility(button, encryptedData, fieldName) {
+      const isVisible = button.textContent.trim() === '◉';
+      
+      if (isVisible) {
+        // Show decrypted data
+        const decrypted = decryptServerData(encryptedData);
+        button.textContent = '◯';
+        button.parentElement.innerHTML = `<span style="color: #00ff00; font-weight: bold; font-family: 'Courier New', monospace;">${decrypted}</span><button onclick="toggleDataVisibility(this, '${encryptedData}', '${fieldName}')" class="pwd-toggle" title="Hide ${fieldName}">◯</button>`;
+      } else {
+        // Hide data
+        button.textContent = '◉';
+        button.parentElement.innerHTML = `<span style="color: #666; font-family: 'Courier New', monospace;">••••••••</span><button onclick="toggleDataVisibility(this, '${encryptedData}', '${fieldName}')" class="pwd-toggle" title="Show ${fieldName}">◉</button>`;
+      }
+    }
+    */
+
+    // Function to load data with authentication
+    async function loadData() {
+        if (SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_URL_HERE') {
+            showError('Please update Google Apps Script URL first');
+            return;
+        }
+
+        // Get current DOM element references
+        const currentTable = window.table || table;
+        const currentTbody = window.tbody || tbody;
+        const currentLoadingMsg = window.loadingMsg || loadingMsg;
+        const currentErrorMsg = window.errorMsg || errorMsg;
+        const currentNoDataMsg = window.noDataMsg || noDataMsg;
+        const currentLoadButton = window.loadButton || loadButton;
+        
+        // Check if user is authenticated
+        if (!window.authManager || !window.authManager.isAuthenticated()) {
+            showError('Please login first');
+            return;
+        }
+
+        hideAllMessages();
+        currentLoadingMsg.style.display = 'inline';
+        currentLoadButton.disabled = true;
+
+        try {
+            // Get valid authentication token
+            const token = await window.authManager.getValidToken();
+            if (!token) {
+                throw new Error('Failed to get authentication token');
+            }
+
+            // Get username from search field
+            const usernameSearch = document.getElementById('usernameSearch').value.trim();
+            
+            // Build URL with token and username parameters
+            let url = SCRIPT_URL + '?token=' + encodeURIComponent(token);
+            if (usernameSearch) {
+                url += '&username=' + encodeURIComponent(usernameSearch);
+            }
+            
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+            }
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (jsonErr) {
+                console.error('JSON parsing error:', jsonErr);
+                throw new Error('Invalid data received from server');
+            }
+
+            // Check for authentication errors
+            if (data.error) {
+                if (data.code === 'AUTH_REQUIRED' || data.code === 'INVALID_TOKEN') {
+                    // Force re-authentication
+                    await window.authManager.logout();
+                    throw new Error('Session expired, please login again');
+                }
+                throw new Error(data.error);
+            }
+
+            // Clear table
+            currentTbody.innerHTML = '';
+
+            if (Array.isArray(data) && data.length > 0) {
+                // Add data to table with encryption support (using for loop for async support)
+                for (const row of data) {
+                    const tr = document.createElement('tr');
+                    
+                    // Handle encrypted password field (column E in Server sheet)
+                    let passwordDisplay = '';
+                    if (row.password && isServerEncrypted(row.password)) {
+                        // Encrypted password - decrypt and show directly
+                        const decryptedPassword = await decryptServerData(row.password);
+                        passwordDisplay = `<span style="color: #00ff00; font-family: 'Courier New', monospace;">${decryptedPassword}</span>`;
+                    } else {
+                        // Plain text password or empty
+                        passwordDisplay = row.password || '';
+                    }
+                    
+                    tr.innerHTML = `
+                        <td>${row.type || ''}</td>
+                        <td>${row.username || ''}</td>
+                        <td>${passwordDisplay}</td>
+                        <td>${formatDate(row.date) || ''}</td>
+                        <td>${row.notes || ''}</td>
+                        <td>${row.extra || ''}</td>
+                    `;
+                    currentTbody.appendChild(tr);
+                }
+                
+                // Show Server encryption statistics
+                const totalPasswords = data.filter(row => row.password && row.password.toString().trim() !== '').length;
+                const encryptedPasswords = data.filter(row => row.password && isServerEncrypted(row.password)).length;
+                
+                console.log(`[INFO] Server Encryption Status: ${encryptedPasswords}/${totalPasswords} passwords encrypted`);
+                console.log(`[INFO] Encryption rate: ${totalPasswords > 0 ? Math.round((encryptedPasswords / totalPasswords) * 100) : 0}%`);
+                
+                if (encryptedPasswords > 0) {
+                    showSuccess(`Loaded ${data.length} records successfully. ${encryptedPasswords}/${totalPasswords} passwords decrypted and displayed`);
+                } else {
+                    showSuccess(`Loaded ${data.length} records successfully`);
+                }
+                
+                currentTable.style.display = 'table';
+            } else {
+                currentNoDataMsg.style.display = 'block';
+            }
+
+        } catch (error) {
+            console.error('Error fetching data:', error);
+            showError('Error: ' + error.message);
+        } finally {
+            currentLoadingMsg.style.display = 'none';
+            currentLoadButton.disabled = false;
+        }
+    }
+
+    // Initialize main app functionality (called by auth manager)
+    window.initMainApp = function() {
+        // Get new references to DOM elements (they might have been recreated)
+        const newLoadButton = document.getElementById('loadData');
+        const newTable = document.getElementById('resultsTable');
+        const newTbody = newTable.querySelector('tbody');
+        const newLoadingMsg = document.getElementById('loadingMsg');
+        const newErrorMsg = document.getElementById('errorMsg');
+        const newNoDataMsg = document.getElementById('noDataMsg');
+        
+        // Update global references
+        window.loadButton = newLoadButton;
+        window.table = newTable;
+        window.tbody = newTbody;
+        window.loadingMsg = newLoadingMsg;
+        window.errorMsg = newErrorMsg;
+        window.noDataMsg = newNoDataMsg;
+        
+        // Add event listener for button
+        newLoadButton.addEventListener('click', loadData);
+        
+        // Add event listener for search field (on Enter press)
+        document.getElementById('usernameSearch').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadData();
+            }
+        });
+        
+        // Auto-load data after successful authentication
+        setTimeout(loadData, 500);
+    };
+    
+    // Update global references for initial load
+    window.loadButton = loadButton;
+    window.table = table;
+    window.tbody = tbody;
+    window.loadingMsg = loadingMsg;
+    window.errorMsg = errorMsg;
+    window.noDataMsg = noDataMsg;
+
+    // Function to update script URL (use when you get the URL)
+    function updateScriptURL(newURL) {
+        SCRIPT_URL = newURL;
+        console.log('Script URL updated:', SCRIPT_URL);
+    }
+</script>
+
+<!-- Firebase Configuration -->
+<script src="config/firebase-Config.js"></script>
+
+<!-- Encryption Key Manager -->
+<script src="encryption/encryption-key-manager.js"></script>
+
+<!-- Authentication Module -->
+<script src="scripts/auth.js"></script>
+
+</body>
+</html>
